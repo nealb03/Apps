@@ -1,56 +1,32 @@
-/* Root container for the React app */
-#root {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+// Frontend01/src/App.jsx
+import React from 'react'
+import './index.css'
+
+function App() {
+  return (
+    <div className="app">
+      <header className="app-header">
+        <h1>Project2 Frontend</h1>
+        <p>This is a basic React + Vite frontend wired for GitHub Actions deployment.</p>
+      </header>
+
+      <main className="app-main">
+        <section className="card">
+          <h2>Status</h2>
+          <p>Frontend build is managed by GitHub Actions and deployed via your backend CI/CD pipeline.</p>
+        </section>
+
+        <section className="card">
+          <h2>Next Steps</h2>
+          <ul>
+            <li>Customize this UI to match your application requirements.</li>
+            <li>Connect to your backend API.</li>
+            <li>Add routing, state management, and components as needed.</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  )
 }
 
-/* Optional: slight tweaks on smaller screens */
-@media (max-width: 768px) {
-  #root {
-    padding: 1.5rem 1rem;
-  }
-}
-
-/* Logo styles (keep if you still use the logo) */
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-/* Optional spinning animation for the React logo */
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-/* Card-style container */
-.card {
-  padding: 2em;
-}
-
-/* Helper text style */
-.read-the-docs {
-  color: #888;
-}
+export default App
