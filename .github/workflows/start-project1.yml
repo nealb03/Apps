@@ -22,7 +22,9 @@ jobs:
         run: |
           echo "Starting EC2 instance..."
           aws ec2 start-instances --instance-ids ${{ secrets.PROJECT1_EC2_INSTANCE_ID }}
-          echo "EC2 instance start comman: Wait for EC2 instance to be running
+          echo "EC2 instance start command sent"
+      
+      - name: Wait for EC2 instance to be running
         run: |
           echo "Waiting for instance to be running..."
           aws ec2 wait instance-running --instance-ids ${{ secrets.PROJECT1_EC2_INSTANCE_ID }}
