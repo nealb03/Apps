@@ -1,0 +1,80 @@
+name: Stop Project2 (Fargate)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stop-fargate-services:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Stop Frontend ECS Service
+        run: |
+          echo "Stopping Frontend ECS service..."
+          aws ecs update-service \
+            --region us-east-1 \
+            --cluster brentaneal-cluster \
+            --service brentaneal-frontend-service \
+            --desired-count 0
+          echo "Frontend service stop command sent"
+
+      - name: Stop Backend ECS Service
+        run: |
+          echo "Stopping Backend ECS service..."
+          aws ecs update-service \
+            --region us-east-1 \
+            --cluster brentaneal-cluster \
+            --service brentaneal-backend-service \
+            --desired-count 0
+          echo "Backend service stop command sent"
+
+      - name: Wait for Frontend to scale down
+        run: |
+          echo "Waiting for Frontend tasks to terminate..."
+          sleep 30
+          FRONTEND_COUNT=$(aws ecs describe-services \
+            --region us-east-1 \
+            --cluster brentaneal-cluster \
+            --services brentaneal-frontend-service \
+            --query 'services[0].runningCount' \
+            --output text)
+          echo "Frontend running tasks: $FRONTEND_COUNT"
+
+      - name: Wait for Backend to scale down
+        run: |
+          echo "Waiting for Backend tasks to terminate..."
+          sleep 30
+          BACKEND_COUNT=$(aws ecs describe-services \
+            --region us-east-1 \
+            --cluster brentaneal-cluster \
+            --services brentaneal-backend-service \
+            --query 'services[0].runningCount' \
+            --output text)
+          echo "Backend running tasks: $BACKEND_COUNT"
+
+      - name: Display service status
+        run: |
+          echo "=========================================="
+          echo "Project2 Fargate Services Stopped"
+          echo "=========================================="
+          
+          aws ecs describe-services \
+            --region us-east-1 \
+            --cluster brentaneal-cluster \
+            --services brentaneal-frontend-service brentaneal-backend-service \
+            --query 'services[*].[serviceName,runningCount,desiredCount]' \
+            --output table
+          
+          echo ""
+          echo "Services have been scaled to 0"
+          echo "No charges for stopped Fargate tasks"
