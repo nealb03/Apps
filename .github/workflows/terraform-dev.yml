@@ -1,0 +1,87 @@
+name: Terraform Deploy - DEV
+
+on:
+  # Manual trigger: used for real Terraform changes in DEV
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Terraform app folder under ./terraform (e.g. app1-s3-ec2-rds, app2-fargate)'
+        required: true
+        default: 'app1-s3-ec2-rds'
+      aws_region:
+        description: 'AWS region (e.g. us-east-1)'
+        required: true
+        default: 'us-east-1'
+      confirm_apply:
+        description: 'Type "APPLY" to confirm you understand this will change real infrastructure in DEV'
+        required: true
+        default: 'NO'
+
+jobs:
+  terraform-deploy-dev:
+    name: Terraform Deploy DEV for ${{ github.event.inputs.app }}
+    runs-on: ubuntu-latest
+
+    environment: dev
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      TF_APP:     ${{ github.event.inputs.app }}
+      TF_ENV:     dev
+      TF_REGION:  ${{ github.event.inputs.aws_region }}
+      TF_WORKDIR: terraform/${{ github.event.inputs.app }}
+      TF_LOG: INFO
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::288761763536:role/GithubActionsRole
+          role-session-name: github-actions-dev
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      - name: Show deployment context
+        run: |
+          echo "=== Terraform Deploy Context (DEV) ==="
+          echo "Terraform app:   ${TF_APP}"
+          echo "Environment:     ${TF_ENV}"
+          echo "AWS region:      ${TF_REGION}"
+          echo "Working dir:     ${TF_WORKDIR}"
+          echo "Confirm apply:   ${{ github.event.inputs.confirm_apply }}"
+          echo "Git ref:         $GITHUB_REF"
+          echo "Git SHA:         $GITHUB_SHA"
+          echo "====================================="
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKDIR }}
+        env:
+          TF_VAR_environment: ${{ env.TF_ENV }}
+          TF_VAR_aws_region:  ${{ env.TF_REGION }}
+        run: terraform plan -compact-warnings
+
+      - name: Terraform Apply (DEV, requires confirm_apply == "APPLY" on main)
+        if: github.ref == 'refs/heads/main' && github.event.inputs.confirm_apply == 'APPLY'
+        working-directory: ${{ env.TF_WORKDIR }}
+        env:
+          TF_VAR_environment: ${{ env.TF_ENV }}
+          TF_VAR_aws_region:  ${{ env.TF_REGION }}
+        run: terraform apply -auto-approve

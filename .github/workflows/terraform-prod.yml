@@ -1,0 +1,109 @@
+name: Terraform Deploy - PROD
+
+on:
+  # Manual trigger: used for real Terraform changes in PROD
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Terraform app folder under ./terraform (e.g. app1-s3-ec2-rds, app2-fargate)'
+        required: true
+        default: 'app1-s3-ec2-rds'
+      aws_region:
+        description: 'AWS region (e.g. us-east-1)'
+        required: true
+        default: 'us-east-1'
+      confirm_apply:
+        description: 'Type "APPLY" to confirm you understand this will change real infrastructure in PROD'
+        required: true
+        default: 'NO'
+
+jobs:
+  terraform-deploy-prod:
+    # This job deploys any Terraform app under ./terraform to the PROD environment.
+    name: Terraform Deploy PROD for ${{ github.event.inputs.app }}
+    runs-on: ubuntu-latest
+
+    # GitHub Environment "prod" – can be configured with required reviewers/approvals
+    environment: prod
+
+    # Required for GitHub OIDC -> AWS STS
+    permissions:
+      id-token: write       # allow requesting the OIDC token
+      contents: read        # allow actions/checkout to read the repo
+
+    env:
+      # Map inputs to env vars
+      TF_APP:     ${{ github.event.inputs.app }}
+      TF_ENV:     prod
+      TF_REGION:  ${{ github.event.inputs.aws_region }}
+      TF_WORKDIR: terraform/${{ github.event.inputs.app }}
+
+      # Optional: consistent Terraform logging
+      TF_LOG: INFO
+
+    steps:
+      # 1) Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2) Configure AWS credentials via OIDC (no long-lived keys)
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::288761763536:role/GithubActionsRole
+          role-session-name: github-actions-prod
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      # 3) Show deployment context (good for audit & interview discussion)
+      - name: Show deployment context
+        run: |
+          echo "=== Terraform Deploy Context (PROD) ==="
+          echo "Terraform app:   ${TF_APP}"
+          echo "Environment:     ${TF_ENV}"
+          echo "AWS region:      ${TF_REGION}"
+          echo "Working dir:     ${TF_WORKDIR}"
+          echo "Confirm apply:   ${{ github.event.inputs.confirm_apply }}"
+          echo "Git ref:         $GITHUB_REF"
+          echo "Git SHA:         $GITHUB_SHA"
+          echo "======================================"
+
+      # 4) Install a pinned Terraform version
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      # 5) Terraform init for the selected app
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform init
+
+      # 6) Validate Terraform configuration
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform validate
+
+      # 7) Terraform Plan (safe, no changes)
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKDIR }}
+        env:
+          TF_VAR_environment: ${{ env.TF_ENV }}
+          TF_VAR_aws_region:  ${{ env.TF_REGION }}
+        run: terraform plan -compact-warnings
+
+      # 8) Terraform Apply (REAL CHANGES TO PROD)
+      #
+      # Guardrails:
+      # - Only runs when:
+      #     * Branch is main, AND
+      #     * confirm_apply == "APPLY"
+      #
+      # Combined with GitHub Environment "prod" approvals, this is very close to
+      # real-world enterprise gating.
+      - name: Terraform Apply (PROD, requires confirm_apply == "APPLY" on main)
+        if: github.ref == 'refs/heads/main' && github.event.inputs.confirm_apply == 'APPLY'
+        working-directory: ${{ env.TF_WORKDIR }}
+        env:
+          TF_VAR_environment: ${{ env.TF_ENV }}
+          TF_VAR_aws_region:  ${{ env.TF_REGION }}
+        run: terraform apply -auto-approve
